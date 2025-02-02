@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Distress Signal Detection</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        background-color: #f0f0f0;
+        text-align: center;
+      }
+
+      .container {
+        max-width: 800px;
+        margin: auto;
+      }
+
+      #videoContainer {
+        display: none;
+        margin-top: 20px;
+      }
+
+      #alertBox {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: #ff4444;
+        color: white;
+        padding: 30px;
+        border-radius: 10px;
+        font-size: 24px;
+        z-index: 1000;
+      }
+
+      button {
+        padding: 10px 20px;
+        font-size: 18px;
+        margin: 10px;
+        border: none;
+        cursor: pointer;
+        border-radius: 5px;
+      }
+
+      .live-detect {
+        background-color: #28a745;
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Distress Signal Detection System</h1>
+      <h3>
+        Show the 'Help' signal (open palm with thumb across) to trigger alert
+      </h3>
+
+      <button class="live-detect" onclick="startLiveDetection()">
+        Live Detect
+      </button>
+
+      <div id="videoContainer">
+        <img id="videoFeed" width="800" />
+      </div>
+
+      <div id="alertBox">DISTRESS SIGNAL DETECTED!</div>
+      <div id="gestureBox"></div>
+      <h2>Past Detections</h2>
+      <div id="pastDetections"></div>
+
+      <script>
+        function fetchScreenshots() {
+          fetch("/get_screenshots")
+            .then((response) => response.json())
+            .then((data) => {
+              const pastDetections = document.getElementById("pastDetections");
+              pastDetections.innerHTML = "";
+
+              data.forEach((item) => {
+                pastDetections.innerHTML += `
+            <div style="border: 1px solid black; padding: 10px; margin: 10px; display: inline-block;">
+              <p><strong>Status:</strong> ${
+                item.status === "correct" ? "✅ Correct" : "❌ Incorrect"
+              }</p>
+              <p><strong>Time:</strong> ${item.timestamp}</p>
+              <img src="${item.imagePath}" width="150">
+            </div>
+          `;
+              });
+            });
+        }
+
+        fetchScreenshots();
+        setInterval(fetchScreenshots, 5000); // Refresh every 5 sec
+      </script>
+    </div>
+
+    <script>
+      function startLiveDetection() {
+        const videoContainer = document.getElementById("videoContainer");
+        const videoFeed = document.getElementById("videoFeed");
+
+        // Set the video source dynamically
+        videoFeed.src = "{{ url_for('video_feed') }}";
+
+        // Show the video feed container
+        videoContainer.style.display = "block";
+
+        // Start checking for alerts
+        checkAlert();
+        checkGesture();
+      }
+
+      function checkAlert() {
+        fetch("/check_alert")
+          .then((response) => response.json())
+          .then((data) => {
+            const alertBox = document.getElementById("alertBox");
+            alertBox.style.display = data.alertActive ? "block" : "none";
+          });
+
+        setTimeout(checkAlert, 1000);
+      }
+      function checkGesture() {
+        fetch("/check_gesture")
+          .then((response) => response.json())
+          .then((data) => {
+            const gestureBox = document.getElementById("gestureBox");
+            gestureBox.style.display = "block";
+
+            if (data.imagePath) {
+              gestureBox.innerHTML = `
+          <strong>Gesture Status:</strong> ${
+            data.gestureDetected ? "Correct ✅" : "Incorrect ❌"
+          }
+          <br>
+          <img src="${data.imagePath}" width="300">
+        `;
+            } else {
+              gestureBox.innerHTML = "<strong>No gesture detected yet</strong>";
+            }
+          });
+
+        setTimeout(checkGesture, 2000);
+      }
+
+      document.getElementById("alertBox").addEventListener("click", () => {
+        fetch("/acknowledge_alert", { method: "POST" });
+      });
+    </script>
+  </body>
+</html>
